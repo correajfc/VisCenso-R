@@ -5,9 +5,16 @@
 
 # instalar librerias ----
 install.packages("tidyverse")
-
-library(rgdal)
+install.packages("rgdal")
+install.packages("rgeos")
+install.packages("maptools")
+install.packages("sp")
+install.packages("broom")
+install.packages("viridis")
 library(sp)
+library(rgdal)
+library(rgeos)
+library(maptools)
 library(tidyverse)
 library(broom)
 # paletas de color
@@ -22,7 +29,7 @@ list.files(path = "shp/MGN", pattern="\\.shp$")
 su_valle<-readOGR(dsn = "shp/MGN", layer = "MGN_SectorUrbano")
 # inspeccion shapefiles cargados ----
 class(su_valle)
-su_valle
+#su_valle
 summary(su_valle)
 names(su_valle)
 proj4string(su_valle)
@@ -30,6 +37,7 @@ su_valle@proj4string
 plot(su_valle)
 head(su_valle@data,3)
 
+#filtrar por codigo de ña divipola
 su_cali<-su_valle[su_valle$SECR_SETR_ == "001" & su_valle$CPOB_CPOB_=="000",]
 plot(su_cali)
 summary(su_cali)
@@ -46,6 +54,7 @@ head(su_cali.t)
 #incorporar la info perdida
 su_cali.t %>% left_join( su_cali@data,by=c("id" = "SETU_CCDGO")) ->su
 head(su)
+nrow(su)
 
 
 # pintemos los mapas ----
@@ -55,11 +64,12 @@ p<-ggplot(data = su,mapping = aes(x=long,y=lat,group=group))
 summary(p)
 p+geom_polygon(aes(fill=SETU_NAREA))+
   coord_fixed()+
-  scale_fill_viridis()
+  scale_fill_viridis(option = "magma")
 
 
 h<-ggplot(su_cali@data,aes(x=SETU_NAREA))
-h+geom_histogram(mapping = aes(fill=cut_interval(SETU_NAREA,n = 10)))+scale_fill_viridis(discrete = T)
+h+geom_histogram(mapping = aes(fill=cut_interval(SETU_NAREA,n = 10)))+
+  scale_fill_viridis(discrete = T,option = "magma")
 
 p+geom_polygon(aes(fill=cut_interval(SETU_NAREA,n = 30)))+
   coord_fixed()+
@@ -114,10 +124,11 @@ ggplot(su,aes(x=long,y=lat,group=group))+
 
 # Carga datos CP2005 ----
 #usar RSTUDIO
+
 cp.personas <- read_csv("./data/CP2005 - t_persona_edad.csv",col_types = cols(su_id = col_character()))
 cp.viviendas <- read_csv("./data/CP2005 - t_tipo_vivienda.csv", col_types = cols(su_id = col_character()))
 cp.personas
-summary(cp.personas)
+summary(cp.viviendas)
 
 cp.viviendas %>% rename(otro_tipo=otro_tipo_de_vivienda) ->cp.viviendas
 summary(cp.viviendas)
@@ -174,7 +185,7 @@ su_cali.mc@data %>% nrow()
 left_join(su_cali.mc@data ,cp.df.s, by="SETU_CCNCT") -> su.cp
 su.cp %>% nrow()
 #calcular densidad de poblacion y porcentaje de viviendas por tipo
-
+head(su.cp)
 su.cp %>%
   mutate(densidad_pob=personas/SETU_NAREA)
 
@@ -222,14 +233,14 @@ p+geom_polygon(aes(fill=total_viviendas))+
 #histograma
 
 h<-ggplot(su_cali.mc.cp@data,aes(x=densidad_pob))
-h+geom_histogram(mapping = aes(fill=cut_interval(densidad_pob,n = 10)),bins = 10)+
+h+geom_histogram(mapping = aes(fill=cut_interval(densidad_pob,n = 4)),bins = 30)+
   scale_fill_viridis(discrete = T)
 
 h+geom_histogram(mapping = aes(fill=cut_width(densidad_pob,0.01)),bins = 10)+
   scale_fill_viridis(discrete = T)
 #relacion entre varibles
 names(su_cali.mc.cp@data)
-seleccionadas<-c("SETU_CCDGO","densidad_pob","p_casas","p_apto","p_casaindigena","p_cuarto","p_otroviv")
+seleccionadas<-c("SETU_CCDGO","densidad_pob","p_casas","p_apto","p_cuarto","p_otroviv")
 su_cali.mc.cp@data %>% select(one_of(seleccionadas)) ->seldata
 su_cali.sel<-su_cali.mc
 su_cali.sel@data<-seldata
@@ -242,6 +253,7 @@ plot(seldata[,2:ncol(seldata)])
 
 #con GGally
 install.packages("GGally")
+
 library(GGally)
 
 ggpairs(seldata[,2:ncol(seldata)])
@@ -249,7 +261,7 @@ ggpairs(seldata[,2:ncol(seldata)])
 
 lowerFn <- function(data, mapping, method = "lm", ...) {
   p <- ggplot(data = data, mapping = mapping) +
-    geom_point(colour = "blue") +
+    geom_point(colour = "blue",alpha=0.2) +
     geom_smooth(method = method, color = "red", ...)
   p
 }
@@ -286,7 +298,7 @@ p+geom_polygon(aes(fill=valor))+
   scale_fill_viridis()+
   facet_wrap(~varcp)
 #sin densidad de poblacion
-gather(data = seldata,key = varcp,value = valor,p_casas:p_otroviv) -> seldata.long2
+gather(data = seldata,key = varcp,value = valor,p_casas:p_cuarto,-p_casaindigena) -> seldata.long2
 su_cali.mc.t %>% left_join( seldata.long2,by=c("id" = "SETU_CCDGO")) ->su
 
 p<-ggplot(data = su,mapping = aes(x=long,y=lat,group=group))
@@ -294,7 +306,7 @@ p+geom_polygon(aes(fill=valor))+
   coord_fixed()+
   scale_fill_viridis()+
   theme_void()+
-  facet_wrap(~varcp)
+  facet_wrap(~varcp,ncol = 3)
 
 #salvar una graficas
 ggsave(path = "./output",filename = "mapviviendas.png")
