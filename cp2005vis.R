@@ -2,6 +2,7 @@
 #Foromundo UNIGIS 2017
 #Juan Fernando Correa Caicedo
 
+#rm(list=ls(all=TRUE))
 
 # instalar librerias ----
 install.packages("tidyverse")
